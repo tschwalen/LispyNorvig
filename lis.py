@@ -1,3 +1,7 @@
+import math
+import operator as op
+
+# type declarations
 Symbol = str
 Number = (int, float)
 Atom   = (Symbol, Number)
@@ -6,6 +10,7 @@ Exp    = (Atom, List)
 Env    = dict
 
 
+##### Parser code (Should probably be separated out) #####
 
 def tokenize(chars: str) -> list:
 	"""Convert a string of characters into a list of tokens."""
@@ -63,7 +68,75 @@ def atom(token: str) -> Atom:
 			return Symbol(token)
 
 
-program = "(begin (define r 10) (* pi (* r r)))"
+#########################################################################
 
-print(parse(program))
+
+# program = "(begin (define r 10) (* pi (* r r)))"
+
+# print(parse(program))
 			
+
+def standard_env() -> Env:
+	""" Standard lisp/scheme environment """
+
+	env = Env()
+
+	# pretty clever hack from Mr. Norvig that gets you sin, cos, sqrt, and a bunch of stuff you don't need
+	env.update(vars(math))	
+
+	# table of basic lisp functions and their corrosponding python functions
+	env.update({
+		'+':op.add, '-':op.sub, '*':op.mul, '/':op.truediv, 
+        '>':op.gt, '<':op.lt, '>=':op.ge, '<=':op.le, '=':op.eq, 
+        'abs':     abs,
+        'append':  op.add,
+        'apply':   lambda proc, args: proc(*args),
+        'begin':   lambda *x: x[-1],
+        'car':     lambda x: x[0],
+        'cdr':     lambda x: x[1:],
+        'cons':    lambda x,y: [x] + y,
+        'eq?':     op.is_, 
+        'expt':    pow,
+        'equal?':  op.eq, 
+        'length':  len,
+        'list':    lambda *x: List(x), 
+        'list?':   lambda x: isinstance(x, List),
+        'map':     map,
+        'max':     max,
+        'min':     min,
+        'not':     op.not_,
+        'null?':   lambda x: x == [],
+        'number?': lambda x: isinstance(x, Number),  
+		'print':   print,
+        'procedure?': callable,
+        'round':   round,
+        'symbol?': lambda x: isinstance(x, Symbol) 
+	})
+	return env
+	
+global_env = standard_env()
+
+
+#eval: the heart of any lisp
+def eval(x: Exp, env=global_env) -> Exp:
+	""" Evaluate an expression in an environment."""
+
+	if isinstance(x, Symbol): # reference variable
+		return env[x]
+	elif isinstance(x, Number): # constant number
+		return x
+	elif x[0] == "if": 	#conditionals
+		(_, test, conseq, alt) = x  # using tuple unpacking to get condition, then, else
+		exp = (conseq if eval(test, env) else alt)
+		return eval(exp, env)
+	elif x[0] == "define":
+		(_, symbol, exp) = x
+		env[symbol] = eval(exp, env)
+	else:
+		""" otherwise, evaluate the function on its arguments """
+		proc = eval(x[0], env)
+		args = [eval(arg, env) for arg in x[1:]]
+		return proc(*args)
+
+
+print(eval(parse("(begin (define r 10) (* pi (* r r)))")))
