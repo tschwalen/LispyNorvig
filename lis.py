@@ -139,4 +139,20 @@ def eval(x: Exp, env=global_env) -> Exp:
 		return proc(*args)
 
 
-print(eval(parse("(begin (define r 10) (* pi (* r r)))")))
+#print(eval(parse("(begin (define r 10) (* pi (* r r)))")))
+
+def repl(prompt="lis.py>"):
+
+	while True:
+		val = eval(parse(input(prompt)))
+		if val is not None:
+			print(schemestr(val))
+
+def schemestr(exp):
+	""" Convert a Python object into a Scheme-readable string. """
+	if isinstance(exp, List):
+		return "(" + " ".join(map(schemestr, exp)) + ")"
+	else:
+		return str(exp)
+
+repl()
