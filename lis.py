@@ -7,7 +7,7 @@ Number = (int, float)
 Atom   = (Symbol, Number)
 List   = list
 Exp    = (Atom, List)
-Env    = dict
+#Env    = dict
 
 
 ##### Parser code (Should probably be separated out) #####
@@ -68,13 +68,35 @@ def atom(token: str) -> Atom:
 			return Symbol(token)
 
 
-#########################################################################
+#########################################################################			
 
 
-# program = "(begin (define r 10) (* pi (* r r)))"
 
-# print(parse(program))
-			
+class Env(dict):
+	""" 
+	An environment object (Symbol table), a dict of {"var" : val}
+	pairs, with an outer Env.
+	"""
+
+	def __init__(self, parms=(), args=(), outer=None):
+		self.update(zip(parms, args))
+		self.outer = outer
+
+	def find(self, var):
+		""" Find the innermost Env where var appears. """
+		return self if (var in self) else self.outer.find(var)
+
+class Procedure:
+	""" A user-defined Scheme procedure """
+	def __init__(self, parms, body, env):
+		self.parms, self.body, self.env = parms, body, env
+
+	def __call__(self, *args):
+		return eval(self.body, Env(self.parms, args, self.env))
+
+
+
+
 
 def standard_env() -> Env:
 	""" Standard lisp/scheme environment """
@@ -113,7 +135,7 @@ def standard_env() -> Env:
         'symbol?': lambda x: isinstance(x, Symbol) 
 	})
 	return env
-	
+
 global_env = standard_env()
 
 
@@ -122,25 +144,37 @@ def eval(x: Exp, env=global_env) -> Exp:
 	""" Evaluate an expression in an environment."""
 
 	if isinstance(x, Symbol): # reference variable
-		return env[x]
-	elif isinstance(x, Number): # constant number
+		# find the nearest env with this variable defined
+		return env.find(x)[x]
+	elif not isinstance(x, List): # constant number
 		return x
-	elif x[0] == "if": 	#conditionals
-		(_, test, conseq, alt) = x  # using tuple unpacking to get condition, then, else
+
+	op, *args = x
+	if op == "quote":
+		# trusty old lisp quote
+		return args[0]
+	elif op == "if":
+		(test, conseq, alt) = args
 		exp = (conseq if eval(test, env) else alt)
 		return eval(exp, env)
-	elif x[0] == "define":
-		(_, symbol, exp) = x
+	elif op == "define":
+		(symbol, exp) = args
 		env[symbol] = eval(exp, env)
+	elif op == "set!":
+		(symbol, exp) = args
+		env.find(symbol)[symbol] = eval(exp, env)
+	elif op == "lambda":
+		(parms, body) = args
+		return Procedure(parms, body, env)
 	else:
-		""" otherwise, evaluate the function on its arguments """
-		proc = eval(x[0], env)
-		args = [eval(arg, env) for arg in x[1:]]
-		return proc(*args)
+		proc = eval(op, env)
+		vals = [eval(arg, env) for arg in args]
+		return proc(*vals)
 
 
-#print(eval(parse("(begin (define r 10) (* pi (* r r)))")))
 
+
+####################################################################
 def repl(prompt="lis.py>"):
 
 	while True:
